@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
     # The desired reverberation time and dimensions of the room
     rt60_tgt = 0.3  # seconds
-    room_dim = [10, 7.5, 3.5]  # meters
+    room_dim = [10, 10, 10]  # meters
 
     # import a mono wavfile as the source signal
     # the sampling frequency should match that of the room
@@ -62,14 +62,15 @@ if __name__ == "__main__":
         )
 
     # place the source in the room
-    room.add_source([2.5, 1.73, 1.76], signal=audio, delay=0.5)
-    room.add_source([2.5, 6.73, 1.76], signal=audio, delay=0.5)
+    room.add_source([2.5, 0, 5], signal=audio, delay=0.5)
+    room.add_source([7.5, 0, 5], signal=audio, delay=0.5)
 
     # define the locations of the microphones
     mic_locs = np.c_[
-        [9, 4.87, 1.2],
-        [6.3, 4.93, 1.2],  # mic 1  # mic 2
-        [6.3, 4.98, 1.2],  # mic 1  # mic 2
+        [5, 5, 5],  # mic 1  # mic 2    # middle of the room
+        [2.5, 10, 5],  # mic 1  # mic 2 # far back
+        [7.5, 10, 5],  # mic 1  # mic 2 # far back
+        [5, 0, 5],
     ]
 
     # finally place the array in the room
