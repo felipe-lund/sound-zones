@@ -48,7 +48,7 @@ if __name__ == "__main__":
             fs=fs,
             materials=pra.Material(e_absorption),
             max_order=max_order,
-            use_rand_ism=True,
+            use_rand_ism=False, # Activates random
             air_absorption=True,
         )
     elif args.method == "hybrid":
