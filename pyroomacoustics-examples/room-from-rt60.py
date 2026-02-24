@@ -67,9 +67,9 @@ if __name__ == "__main__":
 
     # define the locations of the microphones
     mic_locs = np.c_[
-        [5, 5, 5],  # mic 1  # mic 2    # middle of the room
-        [2.5, 10, 5],  # mic 1  # mic 2 # far back
-        [7.5, 10, 5],  # mic 1  # mic 2 # far back
+        [5, 5, 5],  # mic 0 # middle of the room
+        [2.5, 10, 5],  # mic 1  far back
+        [7.5, 10, 5],  # mic 2 # far back
         [5, 0, 5],
     ]
 
