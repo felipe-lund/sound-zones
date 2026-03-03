@@ -3,6 +3,7 @@ import pyroomacoustics as pra
 import matplotlib.pyplot as plt
 from myutils import (
     calc_pressure_matching,
+    calc_smooth_pressure_matching,
     create_rectangular_perimeter_speaker_array,
     create_uniform_rectangular_mic_grid,
     get_energy_map_db,
@@ -20,7 +21,7 @@ air_absorption = True # air_absorbtion: if air is absorbed or not
 fs = 16000   # Sampling freq. of the played audio
 room_dim = [5.0, 5.0, 5.0]
 num_speakers_per_row = 10
-mic_spacing = 0.5
+mic_spacing = 0.2
 nfft = 512*2  # for the fourier transfrom
 f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
@@ -107,6 +108,7 @@ print(f"Mics in Dark Zone: {len(dark_indices)}")
 
 # Calc p and g vectors
 p_full, g_full = calc_pressure_matching(room, nfft, H_full, bright_indices, dark_indices)
+# p_full, g_full = calc_smooth_pressure_matching(room, nfft, H_full, bright_indices, dark_indices)
 
 # Calculate the pressure map using extracted data
 pressure_map = get_energy_map_db(

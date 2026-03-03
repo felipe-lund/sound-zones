@@ -124,6 +124,84 @@ def calc_pressure_matching(room, nfft, H_full, bright_indices, dark_indices):
     return p_full, g_full
 
 
+def calc_smooth_pressure_matching(room, nfft, H_full, bright_indices, dark_indices):
+    # 1. Extract physical dimensions and counts
+    num_mics = room.mic_array.R.shape[1]      
+    num_speakers = len(room.sources)          
+    fs = room.fs                              
+    
+    # 2. Extract coordinates for plane wave math
+    mics_locs = room.mic_array.R              
+    
+    # 3. Handle physics constants and axes
+    c = pra.constants.get('c')                
+    f_axis = np.fft.rfftfreq(nfft, d=1/fs)    
+    
+    # -------------------------------------------------------------
+    # Build the Spatial Smoothness (Laplacian) Matrix
+    # -------------------------------------------------------------
+    # Get the 3D coordinates of just the bright zone mics
+    b_coords = mics_locs[:, bright_indices]
+    N_b = b_coords.shape[1]
+    
+    # Calculate pairwise distances between all bright zone mics
+    diffs = b_coords[:, :, np.newaxis] - b_coords[:, np.newaxis, :]
+    dists = np.linalg.norm(diffs, axis=0)
+    
+    # Dynamically find the mic spacing (the smallest non-zero distance)
+    if N_b > 1:
+        mic_spacing = np.min(dists[dists > 0])
+        # Find immediate neighbors (distance roughly equal to mic_spacing)
+        adjacency = (dists > 0) & (dists < mic_spacing * 1.1)
+    else:
+        adjacency = np.zeros((1, 1), dtype=bool)
+        
+    # Build the Laplacian: Diagonal is number of neighbors, -1 for actual neighbors
+    degrees = np.sum(adjacency, axis=1)
+    L_lap = np.diag(degrees) - adjacency.astype(float)
+    # -------------------------------------------------------------
+
+    p_full = np.zeros((num_mics, nfft//2 + 1), dtype=complex)
+    g_full = np.zeros((num_speakers, nfft//2 + 1), dtype=complex)
+    
+    for idx, f in enumerate(f_axis):
+        H = H_full[:, :, idx]
+        Hb = H[bright_indices, :]
+        Hd = H[dark_indices, :]
+
+        k = 2 * np.pi * f / c   
+        theta = 0.0 
+        kx = k * np.cos(theta)
+        ky = k * np.sin(theta)
+
+        x_bright = mics_locs[0, bright_indices]
+        y_bright = mics_locs[1, bright_indices]
+
+        p_des = np.exp(-1j * (kx * x_bright + ky * y_bright))
+
+        # Lambda params (Tuning Knobs)
+        lambda_1 = 1.0       # Dark zone penalty
+        lambda_2 = 1e-2      # Speaker effort penalty
+        lambda_smooth = 0.9  # Spatial smoothness penalty
+        
+        Hb_H_Hb = Hb.conj().T @ Hb
+        Hd_H_Hd = Hd.conj().T @ Hd
+        I = np.eye(num_speakers)
+
+        # NEW: Inject the Laplacian penalty into the R matrix
+        Hb_H_L_Hb = Hb.conj().T @ L_lap @ Hb
+        
+        R_matrix = Hb_H_Hb + lambda_1 * Hd_H_Hd + lambda_2 * I + lambda_smooth * Hb_H_L_Hb
+        
+        right_side = Hb.conj().T @ p_des
+        g = np.linalg.inv(R_matrix) @ right_side
+
+        g_full[:, idx] = g
+        p_full[:, idx] = H @ g
+
+    return p_full, g_full
+
+
 def get_energy_map_db(p_full, audio_freq, audio_amp, fs, nfft, grid_shape):
     """
     Combines pressure fields from multiple frequencies into a normalized dB map.
