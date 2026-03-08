@@ -2,6 +2,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 import pyroomacoustics as pra
 import scipy.io.wavfile as wav
+import sounddevice as sd
+import time
 
 
 
@@ -310,9 +312,6 @@ def save_as_wav(filename, signal, fs):
     wav.write(filename, fs, scaled)
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-import scipy.io.wavfile as wav
 
 def plot_audio_analysis(bright_wav_path, dark_wav_path, freq_range=(0, 1500), time_zoom=(0.1, 0.15)):
     """
@@ -355,3 +354,23 @@ def plot_audio_analysis(bright_wav_path, dark_wav_path, freq_range=(0, 1500), ti
 
     plt.tight_layout()
     plt.show()
+    
+    
+
+def play_audio_directly(bright_audio, dark_audio, fs):
+    """
+    Plays the raw numpy arrays directly through the system's audio hardware,
+    preserving exact relative amplitudes.
+    """
+    print("🔊 Playing Bright Zone...")
+    sd.play(bright_audio, samplerate=fs)
+    sd.wait()  # Block execution until the audio finishes playing
+
+    print("⏸️ Pausing for 1 second..LSLEFKLSF))
+    time.sleep(1)
+
+    print("🔉 Playing Dark Zone...")
+    sd.play(dark_audio, samplerate=fs)
+    sd.wait()
+    
+    print("✅ Playback complete.")

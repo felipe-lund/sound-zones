@@ -12,6 +12,7 @@ from myutils import (
     plot_pressure_map,
     save_as_wav,
     simulate_listening_points,
+    play_audio_directly
 )
 
 
@@ -136,7 +137,9 @@ bright_norm, dark_norm = simulate_listening_points(
 save_as_wav("pm_bright_zone_center.wav", bright_norm, fs)
 save_as_wav("pm_dark_zone_center.wav", dark_norm, fs)
 
-print("Audio files saved! Go listen to them.")
+print("Audio files saved!")
+play_audio_directly(bright_norm, dark_norm, fs)
+
 
 
 #%% View wav files
@@ -147,3 +150,5 @@ plot_audio_analysis(
     freq_range=(300, 700),  # Zoomed into our 400, 500, 600 Hz signals
     time_zoom=(0.5, 0.55)
 )
+
+
