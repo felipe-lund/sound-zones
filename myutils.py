@@ -365,8 +365,8 @@ def play_audio_directly(bright_audio, dark_audio, fs):
     print("🔊 Playing Bright Zone...")
     sd.play(bright_audio, samplerate=fs)
     sd.wait()  # Block execution until the audio finishes playing
-
-    print("⏸️ Pausing for 1 second..LSLEFKLSF))
+    
+    print('Sleeping for 1 second...')
     time.sleep(1)
 
     print("🔉 Playing Dark Zone...")
