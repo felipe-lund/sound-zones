@@ -12,6 +12,7 @@ from myutils import (
     create_rectangular_perimeter_speaker_array,
     create_uniform_rectangular_mic_grid,
     get_energy_map_db,
+    get_energy_map_db_sara,
     get_zone_indices,
     plot_audio_analysis,
     plot_pressure_map,
@@ -86,6 +87,8 @@ c = pra.constants.get('c')  # Speed of sound
 
 t_axis, audio_time, audio_fft = create_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase)
 
+
+
 plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft)
 
 # %% Define Zones
@@ -132,6 +135,8 @@ pressure_map = get_energy_map_db(
     p_full, audio_freq, audio_amp, room.fs, nfft, X.shape
 )
 
+pressure_map_sara = get_energy_map_db_sara(p_full, audio_fft, X.shape)
+
 pressure_map_smooth = get_energy_map_db(
     p_full_smooth, audio_freq, audio_amp, room.fs, nfft, X.shape
 )
@@ -139,6 +144,12 @@ pressure_map_smooth = get_energy_map_db(
 # Visualize
 plot_pressure_map(
     pressure_map, X, Y, all_speakers, 
+    bright_center, dark_center, radius, 
+    title=f"Pressure Matching (Standard): {audio_freq} Hz"
+)
+
+plot_pressure_map(
+    pressure_map_sara, X, Y, all_speakers, 
     bright_center, dark_center, radius, 
     title=f"Pressure Matching (Standard): {audio_freq} Hz"
 )

@@ -230,6 +230,33 @@ def get_energy_map_db(p_full, audio_freq, audio_amp, fs, nfft, grid_shape):
 
     return p_dB.reshape(grid_shape)
 
+def get_energy_map_db_sara(p_full, audio_fft, grid_shape):
+    """
+    Combines pressure fields from multiple frequencies into a normalized dB map.
+    """
+    num_mics = p_full.shape[0]          # M (total number of mics)
+    energy_tot = np.zeros(num_mics)     # We want to calculate the energy each mic hears (starting with zero)
+
+    # Accumulate energy (magnitude squared) for target frequencies
+    for i in range(len(audio_fft)):
+
+        # p_freq: the amplitude and phase change that every mic experiences for the studied frequency f
+        p_freq = p_full[:, i]  
+        # energy_freq: the energy each mic experiences by this frequency f is 
+        # the amplitude of the original sound at that freq times the change of the amplitude
+        energy_freq = np.abs(audio_fft[i] * p_freq)**2
+        # The total energy of each mic is the sum of the energy of all frequencies for that mic
+        energy_tot += energy_freq
+
+    # RMS and dB conversion
+    p_total_rms = np.sqrt(energy_tot)
+    p_dB = 20 * np.log10(p_total_rms + 1e-12)
+    
+    # Normalize: Loudest point becomes 0 dB
+    p_dB -= np.max(p_dB) 
+
+    return p_dB.reshape(grid_shape)
+
 def plot_pressure_map(pressure_map, X, Y, all_speakers, bright_center, dark_center, radius, title):
     """
     Renders the acoustic heatmap with zone and speaker overlays.
