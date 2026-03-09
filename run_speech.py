@@ -1,3 +1,6 @@
+## Spectral Analysis Project
+
+# %%
 import numpy as np
 import pyroomacoustics as pra
 import matplotlib.pyplot as plt
@@ -27,7 +30,7 @@ air_absorption = True # air_absorbtion: if air is absorbed or not
 fs = 16000   # Sampling freq. of the played audio
 room_dim = [5.0, 5.0, 5.0]
 num_speakers_per_row = 10
-mic_spacing = 0.2
+mic_spacing = 0.5
 nfft = 512*2  # for the fourier transfrom
 f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
@@ -91,20 +94,25 @@ for idx, freq in enumerate(audio_freq):
 # The frequencies of the signal (division of nfft/2 for the magnitude to be correct)
 audio_fft = np.fft.rfft(audio_time, n=nfft) 
 
-plt.figure()
-plt.plot(t_axis[:int(0.01 * fs)]*1_000, audio_time[:int(0.01 * fs)])
-plt.xlabel("Time [ms]")
-plt.ylabel("Magnitude")
-plt.title("The Audio Signal")
-plt.grid(True)
-plt.show()
+# Create a figure with 2 subplots (2 rows, 1 column)
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))  # adjust size if needed
 
-plt.figure()
-plt.plot(f_axis, np.abs(audio_fft)/(nfft/2))
-plt.xlabel("Frequency [Hz]")
-plt.ylabel("Magnitude")
-plt.title("FFT of audio signal")
-plt.grid(True)
+# --- First subplot: Time domain ---
+ax1.plot(t_axis[:int(0.01 * fs)]*1_000, audio_time[:int(0.01 * fs)], color='tab:blue')
+ax1.set_xlabel("Time [ms]")
+ax1.set_ylabel("Magnitude")
+ax1.set_title("Time Domain: Audio Signal")
+ax1.grid(True)
+
+# --- Second subplot: Frequency domain ---
+ax2.plot(f_axis, np.abs(audio_fft)/(nfft/2), color='tab:orange')
+ax2.set_xlabel("Frequency [Hz]")
+ax2.set_ylabel("Magnitude")
+ax2.set_title("Frequency Domain: FFT of Audio Signal")
+ax2.grid(True)
+
+# Adjust layout so titles and labels don't overlap
+plt.tight_layout()
 plt.show()
 
 # %% Define Zones
@@ -196,6 +204,9 @@ plot_audio_analysis(
     freq_range=(300, 700),  # Zoomed into our 400, 500, 600 Hz signals
     time_zoom=(0.5, 0.55)
 )
+
+
+# %% Only for Sara's Run All button to work
 
 # This has to be in the end of the file for Sara's figures to not close down
 plt.ioff()
