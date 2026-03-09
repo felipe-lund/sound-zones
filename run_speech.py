@@ -72,6 +72,9 @@ end = time.time()
 print(f'H_full ready in {end - start:.2f} seconds')
 print('='*50)
 
+
+
+
 # %% Create signal
 
 # Selecting params for signal
@@ -91,26 +94,52 @@ audio_fft = np.fft.rfft(audio_time, n=nfft)
 
 
 
-# Create a figure with 2 subplots (2 rows, 1 column)
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))  # adjust size if needed
+#%% TRY REAL SIGNAL
 
-# --- First subplot: Time domain ---
-ax1.plot(t_axis[:int(0.01 * fs)]*1_000, audio_time[:int(0.01 * fs)], color='tab:blue')
+
+import scipy.io.wavfile as wav
+from myutils import clean_wav_data, resample_signal
+
+# 1. Load the wav file
+filepath = 'wav_files/why_were_you_away.wav'
+fs_file, wav_data = wav.read(filepath)
+data = clean_wav_data(wav_data) # extract signal and normalize
+audio_time_full = resample_signal(data, fs_file, fs)
+
+
+# 2. Select section
+start_sec = 0.250
+duration = 20e-3
+num_samples = int(duration * fs)
+start_index = round(start_sec * fs)
+end_index = start_index + num_samples
+audio_time = audio_time_full[start_index : end_index]
+
+# 3. Compute the FFT
+audio_fft = np.fft.rfft(audio_time, n=nfft)
+
+# --- Visualization ---
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+# Time domain (plotting the first 10ms for detail)
+t_plot = np.arange(len(audio_time)) / fs * 1000  # time in ms
+ax1.plot(t_plot, audio_time, color='tab:blue')
 ax1.set_xlabel("Time [ms]")
 ax1.set_ylabel("Magnitude")
-ax1.set_title("Time Domain: Audio Signal")
+ax1.set_title(f"Time Domain: Audio Signal ({duration*1000:.0f} ms slice)")
 ax1.grid(True)
 
-# --- Second subplot: Frequency domain ---
-ax2.plot(f_axis, np.abs(audio_fft)/(nfft/2), color='tab:orange')
+# Frequency domain
+ax2.plot(f_axis, np.log(np.abs(audio_fft)/(nfft/2)), color='tab:orange')
 ax2.set_xlabel("Frequency [Hz]")
-ax2.set_ylabel("Magnitude")
+ax2.set_ylabel("log(Magnitude)")
 ax2.set_title("Frequency Domain: FFT of Audio Signal")
 ax2.grid(True)
+# ax2.set_ylim(0, np.log(0.03))
 
-# Adjust layout so titles and labels don't overlap
 plt.tight_layout()
 plt.show()
+
 
 # %% Define Zones
 radius = 0.5

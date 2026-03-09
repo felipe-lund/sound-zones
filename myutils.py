@@ -524,4 +524,30 @@ def get_or_compute_H(room, nfft, params_dict, cache_dir="cached_rir"):
     
     return H_full
     
+
+
+from scipy.signal import resample
+
+
+def clean_wav_data(data):
+    if data.ndim > 1:
+        data = data[:, 0]  # Take one channel if stereo
+    data = data.astype(np.float32) / 32768.0 
+    return data
+
+
+
+def resample_signal(data, fs_file, fs):
+    if fs_file != fs:
+        print(f'Resampling audio from {fs_file} Hz to {fs} Hz...')
+        num_samples_resampled = int(len(data) * fs / fs_file)
+        audio_time_full = resample(data, num_samples_resampled)
+    else:
+        audio_time_full = data    
+    return audio_time_full
+    
+    
+    
+    
+    
     
