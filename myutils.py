@@ -551,3 +551,37 @@ def resample_signal(data, fs_file, fs):
     
     
     
+
+
+def create_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase):
+    
+    # Creating signal as sum of frequencies
+    t_axis = np.arange(0, duration, 1/fs)   
+    audio_time = np.zeros(len(t_axis))
+    for idx, freq in enumerate(audio_freq):
+        audio_time += audio_amp[idx] * np.sin(2 * np.pi * freq * t_axis + audio_phase[idx])
+    audio_fft = np.fft.rfft(audio_time, n=nfft) 
+
+    return t_axis, audio_time, audio_fft
+    
+def plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft):
+    # Create a figure with 2 subplots (2 rows, 1 column)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))  # adjust size if needed
+
+    # --- First subplot: Time domain ---
+    ax1.plot(t_axis[:int(0.01 * fs)]*1_000, audio_time[:int(0.01 * fs)], color='tab:blue')
+    ax1.set_xlabel("Time [ms]")
+    ax1.set_ylabel("Magnitude")
+    ax1.set_title("Time Domain: Audio Signal")
+    ax1.grid(True)
+
+    # --- Second subplot: Frequency domain ---
+    ax2.plot(f_axis, np.abs(audio_fft)/(nfft/2), color='tab:orange')
+    ax2.set_xlabel("Frequency [Hz]")
+    ax2.set_ylabel("Magnitude")
+    ax2.set_title("Frequency Domain: FFT of Audio Signal")
+    ax2.grid(True)
+
+    # Adjust layout so titles and labels don't overlap
+    plt.tight_layout()
+    plt.show()
