@@ -4,3 +4,4 @@ venv/
 /.sound_venv
 /__pycache__
 .DS_Store
+/cached_rir
