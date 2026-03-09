@@ -76,6 +76,9 @@ end = time.time()
 print(f'H_full ready in {end - start:.2f} seconds')
 print('='*50)
 
+
+
+
 # %% Create signal
 
 # Selecting params for signal
