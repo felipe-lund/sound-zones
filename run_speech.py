@@ -12,7 +12,8 @@ from myutils import (
     plot_pressure_map,
     save_as_wav,
     simulate_listening_points,
-    play_audio_directly
+    play_audio_directly,
+    save_combined_wav
 )
 
 
@@ -139,6 +140,16 @@ save_as_wav("pm_dark_zone_center.wav", dark_norm, fs)
 
 print("Audio files saved!")
 play_audio_directly(bright_norm, dark_norm, fs)
+
+# Run the simulation for the two specific points
+bright_norm, dark_norm = simulate_listening_points(
+    room_dim, fs, all_speakers, g_full, 
+    audio_freq, audio_amp, nfft, 
+    bright_center, dark_center
+)
+
+# Save as a single sequential file
+save_combined_wav("pm_combined_zones.wav", bright_norm, dark_norm, fs, pause_duration=1.0)
 
 
 

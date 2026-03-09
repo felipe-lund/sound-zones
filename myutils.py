@@ -374,3 +374,21 @@ def play_audio_directly(bright_audio, dark_audio, fs):
     sd.wait()
     
     print("✅ Playback complete.")
+    
+    
+    
+def save_combined_wav(filename, bright_audio, dark_audio, fs, pause_duration=1.0):
+    """
+    Stitches the Bright Zone and Dark Zone audio together with a pause in between,
+    ensuring media players normalize them as a single continuous track.
+    """
+    # Create an array of zeros for the silence
+    silence = np.zeros(int(pause_duration * fs))
+    
+    # Concatenate the arrays: Bright -> Silence -> Dark
+    combined_signal = np.concatenate((bright_audio, silence, dark_audio))
+    
+    # Use your existing save_as_wav helper (which handles the 16-bit PCM scaling)
+    save_as_wav(filename, combined_signal, fs)
+    
+    print(f"Combined audio saved to {filename}! (Listen for the volume drop after the pause)")
