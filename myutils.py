@@ -1,9 +1,13 @@
-from matplotlib import pyplot as plt
+import os
+import json
+import hashlib
 import numpy as np
 import pyroomacoustics as pra
 import scipy.io.wavfile as wav
 import sounddevice as sd
 import time
+from matplotlib import pyplot as plt
+
 
 
 
@@ -184,7 +188,7 @@ def calc_smooth_pressure_matching(room, nfft, H_full, bright_indices, dark_indic
         # Lambda params (Tuning Knobs)
         lambda_1 = 1.0       # Dark zone penalty
         lambda_2 = 1e-2      # Speaker effort penalty
-        lambda_smooth = 0.9  # Spatial smoothness penalty
+        lambda_smooth = 1e-2 # Spatial smoothness penalty
         
         Hb_H_Hb = Hb.conj().T @ Hb
         Hd_H_Hd = Hd.conj().T @ Hd
@@ -392,3 +396,133 @@ def save_combined_wav(filename, bright_audio, dark_audio, fs, pause_duration=1.0
     save_as_wav(filename, combined_signal, fs)
     
     print(f"Combined audio saved to {filename}! (Listen for the volume drop after the pause)")
+    
+    
+def slow_compute_H(num_mics, num_speakers, room, nfft):
+    print('Computing H...')
+    H_full = np.zeros((num_mics, num_speakers, nfft//2 + 1), dtype=complex)    # All zeros in the beginning
+    for m in range(num_mics):
+        for s in range(num_speakers):
+            H_full[m, s, :] = np.fft.rfft(room.rir[m][s], n=nfft)
+    return H_full
+    
+    
+    
+def quick_compute_H(num_mics, num_speakers, room, nfft):
+    print('Computing H...')
+
+    # 1. Find the maximum length of any RIR
+    max_rir_len = max(len(rir) for mic_list in room.rir for rir in mic_list)
+
+    # 2. Pad all RIRs to max_rir_len and create the 3D array
+    # We create a zero array and fill it to avoid "inhomogeneous shape" errors
+    rir_array = np.zeros((num_mics, num_speakers, max_rir_len))
+    for m in range(num_mics):
+        for s in range(num_speakers):
+            rir_array[m, s, :len(room.rir[m][s])] = room.rir[m][s]
+
+    # 3. Vectorized FFT (very fast)
+    H_full = np.fft.rfft(rir_array, n=nfft, axis=-1)
+    
+    return H_full
+    
+
+def evaluate_zone_smoothness(p_full, audio_freq, audio_amp, fs, nfft, bright_indices):
+    """
+    Calculates the spatial standard deviation and peak-to-peak ripple 
+    of the energy map specifically inside the bright zone.
+    """
+    energy_tot = np.zeros(len(bright_indices))
+
+    # Accumulate energy for target frequencies (just in the bright zone)
+    for i, target_freq in enumerate(audio_freq):
+        freq_bin = int(np.round((target_freq / fs) * nfft))
+        p_freq = p_full[bright_indices, freq_bin]
+        energy_tot += np.abs(audio_amp[i] * p_freq)**2
+
+    # Convert to dB
+    p_dB = 20 * np.log10(np.sqrt(energy_tot) + 1e-12)
+    
+    # 1. Spatial Standard Deviation (The standard metric for uniformity)
+    std_db = np.std(p_dB)
+    
+    # 2. Peak-to-Peak Ripple (Max diff between the loudest and quietest mic)
+    ripple_db = np.max(p_dB) - np.min(p_dB)
+    
+    return std_db, ripple_db
+    
+    
+    
+def evaluate_acoustic_contrast(p_full, audio_freq, audio_amp, fs, nfft, bright_indices, dark_indices):
+    """
+    Calculates the broadband Acoustic Contrast (in dB) between the bright and dark zones.
+    A higher value means better isolation (the dark zone is quieter).
+    """
+    energy_b = 0.0
+    energy_d = 0.0
+
+    # Accumulate the mean squared pressure for the target frequencies
+    for i, target_freq in enumerate(audio_freq):
+        freq_bin = int(np.round((target_freq / fs) * nfft))
+        
+        # Extract pressures for this frequency bin
+        p_b = p_full[bright_indices, freq_bin]
+        p_d = p_full[dark_indices, freq_bin]
+        
+        # Calculate mean energy, weighted by the amplitude of the signal
+        energy_b += np.mean(np.abs(audio_amp[i] * p_b)**2)
+        energy_d += np.mean(np.abs(audio_amp[i] * p_d)**2)
+
+    # Calculate contrast in dB (with 1e-12 to avoid division by zero)
+    contrast_dB = 10 * np.log10((energy_b + 1e-12) / (energy_d + 1e-12))
+    
+    return contrast_dB
+
+
+
+def get_or_compute_H(room, nfft, params_dict, cache_dir="cached_rir"):
+    """
+    Checks if H_full exists for the given parameters. If so, loads it. 
+    If not, computes the RIR, calculates H_full, and caches it.
+    """
+    # 1. Ensure cache directory exists
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    # 2. Create a unique, deterministic hash from the parameters
+    # sort_keys=True ensures the dictionary is always ordered the same way
+    params_json = json.dumps(params_dict, sort_keys=True)
+    param_hash = hashlib.md5(params_json.encode('utf-8')).hexdigest()
+    
+    filename = os.path.join(cache_dir, f"H_full_{param_hash}.npy")
+    
+    # 3. Check if cached file exists
+    if os.path.exists(filename):
+        print(f"Loading cached H_full from {filename}...")
+        return np.load(filename)
+    
+    # 4. If not, compute it from scratch
+    print("No cache found. Computing RIR from scratch (this may take a while)...")
+    room.compute_rir()
+    
+    # Extract dimensions
+    num_mics = room.mic_array.R.shape[1]
+    num_speakers = len(room.sources)
+    
+    print('Computing H...')
+    # (Using your optimized quick_compute_H logic inline here)
+    max_rir_len = max(len(rir) for mic_list in room.rir for rir in mic_list)
+    rir_array = np.zeros((num_mics, num_speakers, max_rir_len))
+    
+    for m in range(num_mics):
+        for s in range(num_speakers):
+            rir_array[m, s, :len(room.rir[m][s])] = room.rir[m][s]
+
+    H_full = np.fft.rfft(rir_array, n=nfft, axis=-1)
+    
+    # 5. Save the computed H_full to the cache
+    print(f"Saving computed H_full to {filename}...")
+    np.save(filename, H_full)
+    
+    return H_full
+    
+    

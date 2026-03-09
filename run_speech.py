@@ -16,7 +16,10 @@ from myutils import (
     save_as_wav,
     simulate_listening_points,
     play_audio_directly,
-    save_combined_wav
+    save_combined_wav,
+    quick_compute_H,
+    evaluate_zone_smoothness,
+    evaluate_acoustic_contrast
 )
 
 
@@ -58,12 +61,8 @@ end = time.time()
 print(f'Computing RIR DONE IN {end - start:.2f} seconds')
 
 # %% A 3D matrix to save the fft of each RIR
-print('Computing H...')
-H_full = np.zeros((num_mics, num_speakers, nfft//2 + 1), dtype=complex)    # All zeros in the beginning
-for m in range(num_mics):
-    for s in range(num_speakers):
-        H_full[m, s, :] = np.fft.rfft(room.rir[m][s], n=nfft)
-print('Computing H DONE')
+
+H_full = quick_compute_H(num_mics, num_speakers, room, nfft)
 
 #%%  Create signal
 
@@ -118,20 +117,46 @@ print(f"Mics in Dark Zone: {len(dark_indices)}")
 
 #%% Calculate and visualize results
 
-# Calc p and g vectors
+# 1. Standard Pressure Matching
 p_full, g_full = calc_pressure_matching(room, nfft, H_full, bright_indices, dark_indices)
-# p_full, g_full = calc_smooth_pressure_matching(room, nfft, H_full, bright_indices, dark_indices)
+
+std_reg, ripple_reg = evaluate_zone_smoothness(p_full, audio_freq, audio_amp, fs, nfft, bright_indices)
+contrast_reg = evaluate_acoustic_contrast(p_full, audio_freq, audio_amp, fs, nfft, bright_indices, dark_indices)
+
+print("--- Standard PM ---")
+print(f"Smoothness (STD): {std_reg:.2f} dB")
+print(f"Acoustic Contrast: {contrast_reg:.2f} dB\n")
+
+# 2. Smooth Pressure Matching (with lowered lambda_smooth to say, 1e-4)
+p_full_smooth, g_full_smooth = calc_smooth_pressure_matching(room, nfft, H_full, bright_indices, dark_indices)
+
+std_smooth, ripple_smooth = evaluate_zone_smoothness(p_full_smooth, audio_freq, audio_amp, fs, nfft, bright_indices)
+contrast_smooth = evaluate_acoustic_contrast(p_full_smooth, audio_freq, audio_amp, fs, nfft, bright_indices, dark_indices)
+
+print("--- Smooth PM ---")
+print(f"Smoothness (STD): {std_smooth:.2f} dB")
+print(f"Acoustic Contrast: {contrast_smooth:.2f} dB")
 
 # Calculate the pressure map using extracted data
 pressure_map = get_energy_map_db(
     p_full, audio_freq, audio_amp, room.fs, nfft, X.shape
 )
 
+pressure_map_smooth = get_energy_map_db(
+    p_full_smooth, audio_freq, audio_amp, room.fs, nfft, X.shape
+)
+
 # Visualize
 plot_pressure_map(
     pressure_map, X, Y, all_speakers, 
     bright_center, dark_center, radius, 
-    title=f"Pressure Matching: {audio_freq} Hz"
+    title=f"Pressure Matching (Standard): {audio_freq} Hz"
+)
+
+plot_pressure_map(
+    pressure_map_smooth, X, Y, all_speakers, 
+    bright_center, dark_center, radius, 
+    title=f"Pressure Matching (Smooth): {audio_freq} Hz"
 )
 
 
