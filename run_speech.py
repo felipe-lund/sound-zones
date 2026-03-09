@@ -30,7 +30,7 @@ air_absorption = True # air_absorbtion: if air is absorbed or not
 fs = 16000   # Sampling freq. of the played audio
 room_dim = [5.0, 5.0, 5.0]
 num_speakers_per_row = 10
-mic_spacing = 0.5
+mic_spacing = 0.1
 nfft = 512*2  # for the fourier transfrom
 f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
@@ -85,14 +85,11 @@ c = pra.constants.get('c')  # Speed of sound
 t_axis = np.arange(0, duration, 1/fs)   
 audio_time = np.zeros(len(t_axis))
 for idx, freq in enumerate(audio_freq):
-    if len(audio_amp) == 1:
-        # all the parts of the signal have the same frequency
-        audio_time += audio_amp * np.sin(2 * np.pi * freq * t_axis  + audio_phase)
-    else:
-        audio_time += audio_amp[idx] * np.sin(2 * np.pi * freq * t_axis  + audio_phase[idx])
-
-# The frequencies of the signal (division of nfft/2 for the magnitude to be correct)
+    audio_time += audio_amp[idx] * np.sin(2 * np.pi * freq * t_axis + audio_phase[idx])
 audio_fft = np.fft.rfft(audio_time, n=nfft) 
+
+
+
 
 # Create a figure with 2 subplots (2 rows, 1 column)
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))  # adjust size if needed
