@@ -409,7 +409,6 @@ def slow_compute_H(num_mics, num_speakers, room, nfft):
     
     
 def quick_compute_H(num_mics, num_speakers, room, nfft):
-    print('Computing H...')
 
     # 1. Find the maximum length of any RIR
     max_rir_len = max(len(rir) for mic_list in room.rir for rir in mic_list)
