@@ -1,6 +1,9 @@
+
 import numpy as np
 import pyroomacoustics as pra
 import matplotlib.pyplot as plt
+import time 
+plt.ion()
 from myutils import (
     calc_pressure_matching,
     calc_smooth_pressure_matching,
@@ -22,7 +25,7 @@ air_absorption = True # air_absorbtion: if air is absorbed or not
 fs = 16000   # Sampling freq. of the played audio
 room_dim = [5.0, 5.0, 5.0]
 num_speakers_per_row = 10
-mic_spacing = 0.2
+mic_spacing = 1
 nfft = 512*2  # for the fourier transfrom
 f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
@@ -41,13 +44,17 @@ mics_locs, X, Y = create_uniform_rectangular_mic_grid(room_dim, spacing=mic_spac
 mic_array = pra.MicrophoneArray(mics_locs, room.fs)
 num_mics = mic_array.R.shape[1]
 room.add_microphone_array(mic_array)
+
 room.plot()
 
 
 # %% Compute Room impulse Response
 
 print('Computing RIR...')
+start = time.time()
 room.compute_rir()
+end = time.time()
+print(f'Computing RIR DONE IN {end - start:.2f} seconds')
 
 # %% A 3D matrix to save the fft of each RIR
 print('Computing H...')
@@ -55,6 +62,7 @@ H_full = np.zeros((num_mics, num_speakers, nfft//2 + 1), dtype=complex)    # All
 for m in range(num_mics):
     for s in range(num_speakers):
         H_full[m, s, :] = np.fft.rfft(room.rir[m][s], n=nfft)
+print('Computing H DONE')
 
 #%%  Create signal
 
@@ -78,6 +86,7 @@ for idx, freq in enumerate(audio_freq):
 # The frequencies of the signal (division of nfft/2 for the magnitude to be correct)
 audio_fft = np.fft.rfft(audio_time, n=nfft) 
 
+plt.figure()
 plt.plot(t_axis[:int(0.01 * fs)]*1_000, audio_time[:int(0.01 * fs)])
 plt.xlabel("Time [ms]")
 plt.ylabel("Magnitude")
@@ -85,6 +94,7 @@ plt.title("The Audio Signal")
 plt.grid(True)
 plt.show()
 
+plt.figure()
 plt.plot(f_axis, np.abs(audio_fft)/(nfft/2))
 plt.xlabel("Frequency [Hz]")
 plt.ylabel("Magnitude")
@@ -152,3 +162,6 @@ plot_audio_analysis(
 )
 
 
+# This has to be in the end of the file for Sara's figures to not close down
+plt.ioff()
+plt.show()
