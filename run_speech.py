@@ -1,9 +1,18 @@
 ## Spectral Analysis Project
 
 # %%
+
+# Clear all user-defined variables
+from IPython import get_ipython
+
+ip = get_ipython()
+ip.run_line_magic("load_ext", "autoreload")
+ip.run_line_magic("autoreload", "2")
+
 import numpy as np
 import pyroomacoustics as pra
 import matplotlib.pyplot as plt
+import scipy.io.wavfile as wav
 import time 
 plt.ion()
 from myutils import (
@@ -18,6 +27,7 @@ from myutils import (
     plot_pressure_map,
     save_as_wav,
     simulate_listening_points,
+    simulate_listening_points_sara,
     play_audio_directly,
     save_combined_wav,
     evaluate_zone_smoothness,
@@ -25,10 +35,14 @@ from myutils import (
     get_or_compute_H,
     create_signal, 
     plot_signal,
-    verify_wav_contrast
+    clean_wav_data, 
+    resample_signal
 )
 
+# import myutils
+
 # %% Parameters
+
 nbr_bounces = 3 # max_order: max number of reflections in the room
 air_absorption = True # air_absorbtion: if air is absorbed or not
 fs = 16_000   # Sampling freq. of the played audio
@@ -39,7 +53,33 @@ mic_spacing = 0.1
 nfft = 512*2  # for the fourier transfrom
 f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
+# %% Importing An Audio File
+
+# from myutils import import_signal
+
+# filepath = 'wav_files/why_were_you_away.wav'
+# start_sec = 0.200
+# duration = 20e-3
+
+# t_axis, audio_time, audio_fft = import_signal(filepath, fs, nfft, start_sec, duration)
+
+# plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft)
+
+# %% Create signal
+
+# Selecting params for signal
+audio_freq = np.array([400, 500, 600])
+audio_amp = np.array([1, 1, 1])
+audio_phase = np.array([np.pi, np.pi/2, 0])
+duration = 2.0  # seconds
+c = pra.constants.get('c')  # Speed of sound
+
+t_axis, audio_time, audio_fft = create_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase)
+
+plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft)
+
 # %% Create room
+
 room = pra.ShoeBox(
     room_dim, fs=fs, max_order=nbr_bounces, air_absorption=air_absorption
 )
@@ -78,24 +118,8 @@ print(f'H_full ready in {end - start:.2f} seconds')
 print('='*50)
 
 
-
-
-# %% Create signal
-
-# Selecting params for signal
-audio_freq = np.array([400, 500, 600])
-audio_amp = np.array([1, 1, 1])
-audio_phase = np.array([np.pi, np.pi/2, 0])
-duration = 2.0  # seconds
-c = pra.constants.get('c')  # Speed of sound
-
-t_axis, audio_time, audio_fft = create_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase)
-
-
-
-plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft)
-
 # %% Define Zones
+
 radius = 0.5
 bright_center = np.array([1.5, 3.0, 2.5])
 dark_center = np.array([3.5, 3.0, 2.5])
@@ -113,64 +137,25 @@ print('='*50)
 # 1. Standard Pressure Matching
 p_full, g_full = calc_pressure_matching(room, nfft, H_full, bright_indices, dark_indices)
 
-std_reg, ripple_reg = evaluate_zone_smoothness(p_full, audio_freq, audio_amp, fs, nfft, bright_indices)
-contrast_reg = evaluate_acoustic_contrast(p_full, audio_freq, audio_amp, fs, nfft, bright_indices, dark_indices)
-
-print('='*50)
-
-print("--- Standard PM ---")
-print(f"Smoothness (STD): {std_reg:.2f} dB")
-print(f"Acoustic Contrast: {contrast_reg:.2f} dB\n")
-
 # 2. Smooth Pressure Matching 
+print('='*50)
+print("--- Standard PM ---")
 p_full_smooth, g_full_smooth = calc_smooth_pressure_matching(room, nfft, H_full, bright_indices, dark_indices)
 
-std_smooth, ripple_smooth = evaluate_zone_smoothness(p_full_smooth, audio_freq, audio_amp, fs, nfft, bright_indices)
-contrast_smooth = evaluate_acoustic_contrast(p_full_smooth, audio_freq, audio_amp, fs, nfft, bright_indices, dark_indices)
-
-print("--- Smooth PM ---")
-print(f"Smoothness (STD): {std_smooth:.2f} dB")
-print(f"Acoustic Contrast: {contrast_smooth:.2f} dB")
-print('='*50)
-
-
-# Calculate the pressure map using extracted data
-pressure_map = get_energy_map_db(
-    p_full, audio_freq, audio_amp, room.fs, nfft, X.shape
-)
-
-pressure_map_sara = get_energy_map_db_sara(p_full, audio_fft, X.shape)
-
-pressure_map_smooth = get_energy_map_db(
-    p_full_smooth, audio_freq, audio_amp, room.fs, nfft, X.shape
-)
+pressure_map = get_energy_map_db_sara(p_full, audio_fft, X.shape)
 
 # Visualize
 plot_pressure_map(
     pressure_map, X, Y, all_speakers, 
     bright_center, dark_center, radius, 
-    title=f"Pressure Matching (Standard): {audio_freq} Hz"
-)
-
-plot_pressure_map(
-    pressure_map_sara, X, Y, all_speakers, 
-    bright_center, dark_center, radius, 
-    title=f"Pressure Matching (Standard): {audio_freq} Hz"
-)
-
-plot_pressure_map(
-    pressure_map_smooth, X, Y, all_speakers, 
-    bright_center, dark_center, radius, 
-    title=f"Pressure Matching (Smooth): {audio_freq} Hz"
+    title=f"Pressure Matching (Standard)"
 )
 
 # %% Listen to results
 
 # Run the simulation for the two specific points
-bright_norm, dark_norm = simulate_listening_points(
-    room_dim, fs, all_speakers, g_full, 
-    audio_freq, audio_amp, nfft, 
-    bright_center, dark_center
+bright_norm, dark_norm = simulate_listening_points_sara(
+    room_dim, fs, all_speakers, g_full, audio_fft, bright_center, dark_center, nfft
 )
 
 # Save the results
@@ -184,18 +169,12 @@ play_audio_directly(bright_norm, dark_norm, fs)
 save_combined_wav("pm_combined_zones.wav", bright_norm, dark_norm, fs, pause_duration=1.0)
 
 
-
 # %% View wav files
 
 plot_audio_analysis(
-    "wav_files/pm_bright_zone_center.wav", 
-    "wav_files/pm_dark_zone_center.wav",
-    freq_range=(380, 620),  # Zoomed into our 400, 500, 600 Hz signals
-    time_zoom=(0.5, 0.55)
+    "pm_bright_zone_center.wav", 
+    "pm_dark_zone_center.wav", time_zoom=(0, 0.15)
 )
-
-actual_ac = verify_wav_contrast("pm_bright_zone_center.wav", "pm_dark_zone_center.wav")
-print(f"Verified Practical Contrast: {actual_ac:.2f} dB")
 
 
 # %% Only for Sara's Run All button to work
@@ -203,3 +182,4 @@ print(f"Verified Practical Contrast: {actual_ac:.2f} dB")
 # This has to be in the end of the file for Sara's figures to not close down
 plt.ioff()
 plt.show()
+# %%
