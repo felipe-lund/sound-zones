@@ -663,3 +663,23 @@ def plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft):
     # Adjust layout so titles and labels don't overlap
     plt.tight_layout()
     plt.show()
+
+
+def import_signal(filepath, fs, nfft, start_sec, duration):
+
+    filepath = 'wav_files/why_were_you_away.wav'
+    fs_file, wav_data = wav.read(filepath)
+    data = clean_wav_data(wav_data) # extract signal and normalize
+    audio_time_full = resample_signal(data, fs_file, fs)
+
+    # 2. Select section
+    t_axis = np.arange(0, duration, 1/fs)   
+    num_samples = int(duration * fs)
+    start_index = round(start_sec * fs)
+    end_index = start_index + num_samples
+    audio_time = audio_time_full[start_index : end_index]
+
+    # 3. Compute the FFT
+    audio_fft = np.fft.rfft(audio_time, n=nfft)
+
+    return t_axis, audio_time, audio_fft
