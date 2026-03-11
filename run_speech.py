@@ -24,7 +24,8 @@ from myutils import (
     evaluate_acoustic_contrast,
     get_or_compute_H,
     create_signal, 
-    plot_signal
+    plot_signal,
+    verify_wav_contrast
 )
 
 # %% Parameters
@@ -183,14 +184,18 @@ play_audio_directly(bright_norm, dark_norm, fs)
 save_combined_wav("pm_combined_zones.wav", bright_norm, dark_norm, fs, pause_duration=1.0)
 
 
+
 # %% View wav files
 
 plot_audio_analysis(
-    "pm_bright_zone_center.wav", 
-    "pm_dark_zone_center.wav",
-    freq_range=(300, 700),  # Zoomed into our 400, 500, 600 Hz signals
+    "wav_files/pm_bright_zone_center.wav", 
+    "wav_files/pm_dark_zone_center.wav",
+    freq_range=(380, 620),  # Zoomed into our 400, 500, 600 Hz signals
     time_zoom=(0.5, 0.55)
 )
+
+actual_ac = verify_wav_contrast("pm_bright_zone_center.wav", "pm_dark_zone_center.wav")
+print(f"Verified Practical Contrast: {actual_ac:.2f} dB")
 
 
 # %% Only for Sara's Run All button to work

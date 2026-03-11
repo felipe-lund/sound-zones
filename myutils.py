@@ -357,8 +357,8 @@ def plot_audio_analysis(bright_wav_path, dark_wav_path, freq_range=(0, 1500), ti
     freq_axis = np.fft.rfftfreq(len(b_data), 1/fs_b)
 
     # 2. Perform FFT (Magnitude Spectrum)
-    b_fft_mag = np.abs(np.fft.rfft(b_data))
-    d_fft_mag = np.abs(np.fft.rfft(d_data))
+    b_fft_mag = np.log(np.abs(np.fft.rfft(b_data)))
+    d_fft_mag = np.log(np.abs(np.fft.rfft(d_data)))
 
     # 3. Plotting
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
@@ -378,10 +378,11 @@ def plot_audio_analysis(bright_wav_path, dark_wav_path, freq_range=(0, 1500), ti
     ax2.plot(freq_axis, d_fft_mag, label='Dark Zone', color='blue')
     ax2.set_title("Frequency Domain: Magnitude Spectrum")
     ax2.set_xlabel("Frequency (Hz)")
-    ax2.set_ylabel("Magnitude")
+    ax2.set_ylabel("log(Magnitude)")
     ax2.set_xlim(freq_range) 
     ax2.legend()
     ax2.grid(True, alpha=0.3)
+    ax2.set_ylim(12, 20)
 
     plt.tight_layout()
     plt.show()
@@ -612,3 +613,29 @@ def plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft):
     # Adjust layout so titles and labels don't overlap
     plt.tight_layout()
     plt.show()
+    
+    
+def verify_wav_contrast(bright_wav_path, dark_wav_path):
+    """
+    Calculates the actual broadband acoustic contrast between two recorded wav files.
+    """
+    from scipy.io import wavfile
+    
+    # 1. Load the actual recorded data
+    fs_b, b_data = wavfile.read(bright_wav_path)
+    fs_d, d_data = wavfile.read(dark_wav_path)
+    
+    # 2. Convert to float if necessary (scipy reads 16-bit PCM as integers)
+    b_data = b_data.astype(np.float64)
+    d_data = d_data.astype(np.float64)
+    
+    # 3. Calculate Mean Squared Energy (Power)
+    # We use mean to account for any slight difference in signal length
+    energy_bright = np.mean(b_data**2)
+    energy_dark = np.mean(d_data**2)
+    
+    # 4. Compute Contrast in dB
+    # Adding a tiny epsilon to avoid log(0)
+    actual_contrast = 10 * np.log10(energy_bright / (energy_dark + 1e-12))
+    
+    return actual_contrast
