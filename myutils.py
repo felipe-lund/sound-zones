@@ -337,6 +337,52 @@ def simulate_listening_points(room_dim, fs, all_speakers, g_full, audio_freq, au
     
     return bright_audio / max_val, dark_audio / max_val
 
+def simulate_listening_points_sara(room_dim, fs, all_speakers, g_full, audio_fft, bright_center, dark_center, nfft):
+    """
+    Simulates the audio received at the centers of the bright and dark zones.
+    """
+    num_speakers = all_speakers.shape[1]
+    
+    # 1. Create the listening room (ShoeBox with same properties)
+    listening_room = pra.ShoeBox(room_dim, fs=fs, max_order=3, air_absorption=True)
+
+    # 2. Synthesize signals for each speaker
+    for i in range(num_speakers):
+
+        # Every freq. of the original audio is multiplied by its corresponding filter for that speaker
+        speaker_audio_freq_domain = audio_fft * g_full[i, :]
+        # signal_speaker_i = np.zeros(len(t_axis))
+
+        speaker_audio_time_domain = np.fft.irfft(speaker_audio_freq_domain, n=nfft)
+        
+        # speaker_audio_time_domain has the length nfft
+        # print(f"Lenght of the speaker sound {len(speaker_audio_time_domain)}")
+
+        listening_room.add_source(all_speakers[:, i], signal=speaker_audio_time_domain)
+
+    # 3. Add microphones at zone centers
+    # Using the intuitive list approach
+    mics_coords = np.array([
+        [bright_center[0], bright_center[1], bright_center[2]],
+        [dark_center[0], dark_center[1], dark_center[2]]
+    ]).T
+    
+    listening_room.add_microphone_array(pra.MicrophoneArray(mics_coords, fs))
+
+    # 4. Run simulation
+    print("Simulating audio for playback...")
+    listening_room.simulate()
+
+    # 5. Extract and Normalize
+    bright_audio = listening_room.mic_array.signals[0, :]
+    dark_audio = listening_room.mic_array.signals[1, :]
+    
+    # Preserve relative volume difference
+    max_val = max(np.max(np.abs(bright_audio)), np.max(np.abs(dark_audio)))
+    if max_val == 0: max_val = 1 # Avoid division by zero
+    
+    return bright_audio / max_val, dark_audio / max_val
+
 def save_as_wav(filename, signal, fs):
     """Helper to convert float signal to 16-bit PCM and save."""
     scaled = np.int16(signal * 32767)
@@ -351,6 +397,11 @@ def plot_audio_analysis(bright_wav_path, dark_wav_path, freq_range=(0, 1500), ti
     # 1. Load the signals
     fs_b, b_data = wav.read(bright_wav_path)
     fs_d, d_data = wav.read(dark_wav_path)
+
+    print(f"fs bright zone: {fs_b}")
+    print(f"length bright zone: {len(b_data)}")
+    print(f"fs dark zone:   {fs_d}")
+    print(f"length dark zone: {len(d_data)}")
 
     # Standardize time and frequency axes
     t = np.arange(len(b_data)) / fs_b
@@ -374,8 +425,8 @@ def plot_audio_analysis(bright_wav_path, dark_wav_path, freq_range=(0, 1500), ti
     ax1.grid(True, alpha=0.3)
 
     # Frequency Domain Plot
-    ax2.plot(freq_axis, b_fft_mag, label='Bright Zone', color='red')
-    ax2.plot(freq_axis, d_fft_mag, label='Dark Zone', color='blue')
+    ax2.semilogy(freq_axis, b_fft_mag, label='Bright Zone', color='red')
+    ax2.semilogy(freq_axis, d_fft_mag, label='Dark Zone', color='blue')
     ax2.set_title("Frequency Domain: Magnitude Spectrum")
     ax2.set_xlabel("Frequency (Hz)")
     ax2.set_ylabel("Magnitude")
@@ -596,14 +647,14 @@ def plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))  # adjust size if needed
 
     # --- First subplot: Time domain ---
-    ax1.plot(t_axis[:int(0.01 * fs)]*1_000, audio_time[:int(0.01 * fs)], color='tab:blue')
+    ax1.plot(t_axis*1_000, audio_time, color='tab:blue')
     ax1.set_xlabel("Time [ms]")
     ax1.set_ylabel("Magnitude")
     ax1.set_title("Time Domain: Audio Signal")
     ax1.grid(True)
 
     # --- Second subplot: Frequency domain ---
-    ax2.plot(f_axis, np.abs(audio_fft)/(nfft/2), color='tab:orange')
+    ax2.semilogy(f_axis, np.abs(audio_fft)/(nfft/2), color='tab:orange')
     ax2.set_xlabel("Frequency [Hz]")
     ax2.set_ylabel("Magnitude")
     ax2.set_title("Frequency Domain: FFT of Audio Signal")
