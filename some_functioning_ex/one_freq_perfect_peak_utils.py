@@ -635,8 +635,15 @@ def resample_signal(data, fs_file, fs):
     else:
         audio_time_full = data    
     return audio_time_full
+    
+    
+    
+    
+    
+    
 
-def create_pure_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase, zero_padd_sec = 0):
+
+def create_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase, zero_padd_sec = 0):
     
     # Creating signal as sum of frequencies
     t_axis = np.arange(0, duration, 1/fs)   
@@ -653,20 +660,7 @@ def create_pure_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase, z
     # audio_fft = np.fft.rfft(audio_time, n=int(nfft/2)) 
 
     return t_axis, audio_time, audio_fft
-
-def window_signal(audio_time, fs, nfft):
-
-    # The window has the same size as the signal
-    window = np.hanning(len(audio_time)) 
-    audio_time = audio_time * window
-
-    audio_fft = np.fft.rfft(audio_time, n=nfft)
-
-    t_axis_full = np.arange(nfft) / fs
-    audio_time_padded = np.pad(audio_time, (0, nfft - len(audio_time)), 'constant')
     
-    return t_axis_full, audio_time_padded, audio_fft
-
 def plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp=1e-6):
     # Create a figure with 2 subplots (2 rows, 1 column)
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))  # adjust size if needed
