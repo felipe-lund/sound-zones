@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import scipy.io.wavfile as wav
 import time 
 plt.ion()
-from myutils import (
+from myutils_40ms_working import (
     calc_pressure_matching,
     calc_smooth_pressure_matching,
     create_pure_signal,
