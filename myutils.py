@@ -263,8 +263,12 @@ def plot_pressure_map(pressure_map, X, Y, all_speakers, bright_center, dark_cent
     """
     plt.figure(figsize=(10, 6))
     
+    min_db = -80
+    max_db = 0
+    levels = np.linspace(min_db, max_db, 51)
+    
     # Plot heatmap
-    cont = plt.contourf(X, Y, pressure_map, levels=50, cmap='inferno')
+    cont = plt.contourf(X, Y, pressure_map, levels=levels, cmap='inferno')
     plt.colorbar(cont, label="Relative Sound Pressure (dB)")
 
     # Plot Speakers
@@ -383,6 +387,72 @@ def simulate_listening_points_sara(room_dim, fs, all_speakers, g_full, audio_fft
     
     return bright_audio / max_val, dark_audio / max_val
 
+
+def simulate_listening_points_sara_stitched(room_dim, fs, all_speakers, g_full, bright_center, dark_center, nfft, nbr_bounces, n_chunks, overlap: float, time_signals: list, f_signals: list, duration: float):
+    """
+    Simulates the audio received at the centers of the bright and dark zones.
+    """
+    num_speakers = all_speakers.shape[1]
+    
+    # 1. Calculate precise lengths and step sizes
+    samples_per_chunk = int(round(fs * duration))
+    
+    # Define how many samples we step forward for each chunk
+    step_size = int(round(samples_per_chunk * overlap)) 
+    
+    # Total length MUST accommodate the start index of the last chunk PLUS the full nfft tail
+    total_length = (n_chunks - 1) * step_size + nfft
+    
+    # 2. Create the listening room (ShoeBox with same properties)
+    listening_room = pra.ShoeBox(room_dim, fs=fs, max_order=nbr_bounces, air_absorption=True)
+
+    # 3. Synthesize signals for each speaker
+    for i in range(num_speakers):
+        
+        # Pre-allocate array for the entire stitched signal
+        full_speaker_audio_time_domain = np.zeros(total_length)
+        
+        for j, audio_fft in enumerate(f_signals):
+            
+            # Apply the spatial filter in frequency domain
+            speaker_audio_freq_domain = audio_fft * g_full[i, :]
+    
+            # Transform back to time domain with FULL nfft length
+            speaker_audio_time_domain = np.fft.irfft(speaker_audio_freq_domain, n=nfft)
+            
+            # Calculate start and end indices using the step size and nfft
+            start_idx = j * step_size
+            end_idx = start_idx + nfft
+            
+            # Add the FULL chunk to the total signal (Overlap-Add)
+            full_speaker_audio_time_domain[start_idx:end_idx] += speaker_audio_time_domain
+
+        # Add the completed, stitched signal to the room for this speaker
+        listening_room.add_source(all_speakers[:, i], signal=full_speaker_audio_time_domain)
+
+    # 4. Add microphones at zone centers
+    mics_coords = np.array([
+        [bright_center[0], bright_center[1], bright_center[2]],
+        [dark_center[0], dark_center[1], dark_center[2]]
+    ]).T
+    
+    listening_room.add_microphone_array(pra.MicrophoneArray(mics_coords, fs))
+
+    # 5. Run simulation
+    print("Simulating audio for playback...")
+    listening_room.simulate()
+
+    # 6. Extract and Normalize
+    bright_audio = listening_room.mic_array.signals[0, :]
+    dark_audio = listening_room.mic_array.signals[1, :]
+    
+    # Preserve relative volume difference
+    max_val = max(np.max(np.abs(bright_audio)), np.max(np.abs(dark_audio)))
+    if max_val == 0: 
+        max_val = 1 # Avoid division by zero
+    
+    return bright_audio / max_val, dark_audio / max_val
+
 def save_as_wav(filename, signal, fs):
     """Helper to convert float signal to 16-bit PCM and save."""
     scaled = np.int16(signal * 32767)
@@ -390,7 +460,7 @@ def save_as_wav(filename, signal, fs):
 
 
 
-def plot_audio_analysis(bright_wav_path, dark_wav_path, freq_range=(0, 1500), time_zoom=(0.1, 0.15), fs = 16000):
+def plot_audio_analysis(bright_wav_path, dark_wav_path, freq_range=(0, 8000), time_zoom=(0.1, 0.15), fs = 16000):
     """
     Plots time-domain waveforms and frequency-domain spectra for two wav files.
     """
@@ -689,6 +759,50 @@ def plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp=1e-6)
     ax2.set_ylabel("Magnitude")
     ax2.set_title("Frequency Domain: FFT of Audio Signal")
     ax2.grid(True)
+
+    # Adjust layout so titles and labels don't overlap
+    plt.tight_layout()
+    plt.show()
+    
+    
+def plot_signal_log(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp=1e-6):
+    # Create a figure with 2 subplots (2 rows, 1 column)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))  # adjust size if needed
+
+    # --- First subplot: Time domain ---
+    ax1.plot(t_axis*1_000, audio_time, color='tab:blue')
+    ax1.set_xlabel("Time [ms]")
+    ax1.set_ylabel("Magnitude")
+    ax1.set_title("Time Domain: Audio Signal")
+    ax1.grid(True)
+
+   # --- Second subplot: Frequency domain ---
+    magnitude = np.abs(audio_fft) / (nfft / 2)
+    magnitude_clipped = np.maximum(magnitude, mag_clipp) 
+
+    # 1. Rita datan först
+    ax2.semilogy(f_axis, magnitude_clipped, color='tab:orange')
+
+    # 2. Sätt skalan till log base 2
+    ax2.set_xscale('log', base=2)
+
+    # 3. Definiera dina ticks
+    octave_ticks = [125, 250, 500, 1000, 2000, 4000, 8000]
+    ax2.set_xticks(octave_ticks)
+
+    # 4. Tvinga Matplotlib att skriva ut siffror (ScalarFormatter)
+    # Detta måste ligga EFTER set_xscale och set_xticks
+    from matplotlib.ticker import ScalarFormatter
+    ax2.xaxis.set_major_formatter(ScalarFormatter())
+    
+    # 5. Sätt gränser och labels
+    ax2.set_xlim([62.5, fs/2])
+    ax2.set_xlabel("Frequency [Hz] (Log2 Scale)")
+    ax2.set_ylabel("Magnitude")
+    ax2.set_title("Frequency Domain: FFT of Audio Signal")
+    
+    # 6. Grid (viktigt för log-skalor)
+    ax2.grid(True, which='both', linestyle='--', alpha=0.5)
 
     # Adjust layout so titles and labels don't overlap
     plt.tight_layout()
