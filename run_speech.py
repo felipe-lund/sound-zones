@@ -35,6 +35,7 @@ from myutils import (
     evaluate_acoustic_contrast,
     get_or_compute_H,
     plot_signal,
+    plot_signal_log,
     clean_wav_data, 
     resample_signal,
     window_signal
@@ -70,43 +71,20 @@ print('='*50)
 
 # ------------------------
 # Import Audio
-import_audio = True
+import_audio = False
 filepath = 'wav_files/why_were_you_away.wav' # used if import_audio = True
 start_sec = 0.200       # second to start the audio processing
-
-duration  = 40e-3       # seconds
-#duration = 1024/fs      # To make sure nfft = len(audio_time)
-# ------------------------
+duration  = 20e-3       # seconds
+overlap = 0.5
 
 # NFFT needs to be equal to or larger than fs*duration
-nfft = 2**int(np.ceil(np.log2(fs * duration))) # The next power of 2
+nfft = 2**int(np.ceil(np.log2(fs * duration))+2) # The next power of 2
+nfft = 1024
 f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
-if import_audio:
-
-    t_axis, audio_time, audio_fft = import_signal(filepath, fs, nfft, start_sec, duration)
-    plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft)
-
-    del filepath, start_sec
-
-else:
-
-    # ------------------------
-    # Choose the 
-    #audio_freq = np.array([406.25]) # 406.25 gives us perfect peak
-    audio_freq = np.array([400, 500, 600])
-    audio_amp = np.array([1, 1, 2])
-    audio_phase = np.array([0, 0, 0])
-    zero_padd_sec = 0    # seconds, FOR NOW, MUST BE ZERO!!
-    mag_clipp = 10e-8
-    # ------------------------
-
-    t_axis, audio_time, audio_fft = create_pure_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase, zero_padd_sec=zero_padd_sec)
-
-    plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp)
-
-    #del audio_freq, audio_amp, audio_phase, mag_clipp
-
+# Params
+plot = False
+n_chunks = 120
 print('='*50)
 print(
     f"Audio Properties:\n"
@@ -117,10 +95,60 @@ print(
 )
 print('='*50)
 
-# Windowed signal
-t_axis, audio_time, audio_fft = window_signal(audio_time, fs, nfft)
 
-plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp)
+time_signals = []
+f_signals = []
+for i in range(n_chunks):
+    print(f'Processing chunk {i+1}...')
+
+    if import_audio:
+        
+        start_sec += duration*overlap # adjust for overlap
+    
+        # Show raw signal
+        t_axis, audio_time, audio_fft = import_signal(filepath, fs, nfft, start_sec, duration)
+        if plot:
+            plot_signal_log(t_axis, audio_time, f_axis, audio_fft, fs, nfft)
+        
+        # Show windowed signal
+        t_axis, audio_time, audio_fft = window_signal(audio_time, fs, nfft)
+        if plot:
+            plot_signal_log(t_axis, audio_time, f_axis, audio_fft, fs, nfft)
+
+        
+    else:
+    
+        # ------------------------
+        # Create audio 
+        #audio_freq = np.array([406.25]) # 406.25 gives us perfect peak
+        audio_freq = np.array([400, 500, 600])
+        audio_amp = np.array([1, 1, 2])
+        audio_phase = np.array([0, 0, 0])
+        zero_padd_sec = 0    # seconds, FOR NOW, MUST BE ZERO!!
+        mag_clipp = 10e-8
+        # ------------------------
+    
+        # Show windowed signal
+        t_axis, audio_time, audio_fft = create_pure_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase, zero_padd_sec=zero_padd_sec)
+        if plot:
+            plot_signal_log(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp)
+        
+        # Show windowed signal
+        t_axis, audio_time, audio_fft = window_signal(audio_time, fs, nfft)
+        if plot:
+            plot_signal_log(t_axis, audio_time, f_axis, audio_fft, fs, nfft)
+
+    
+    
+    
+    # Windowed signal
+    mag_clipp = 10e-8
+    t_axis, audio_time, audio_fft = window_signal(audio_time, fs, nfft)
+    
+    # Save information
+    time_signals.append(audio_time)
+    f_signals.append(audio_fft)
+    
 
 
 # %% Hanning Window
@@ -230,28 +258,27 @@ print('='*50)
 print("--- Standard PM ---")
 p_full_smooth, g_full_smooth = calc_smooth_pressure_matching(room, nfft, H_full, bright_indices, dark_indices)
 
-pressure_map = get_energy_map_db_sara(p_full, audio_fft, X.shape)
+pressure_map = get_energy_map_db_sara(p_full, f_signals[5], X.shape)
 
 # Visualize
 plot_pressure_map(
     pressure_map, X, Y, all_speakers, 
     bright_center, dark_center, radius, 
-    title=f"Pressure Matching (Standard)"
+    title="Pressure Matching (Standard)"
 )
 
 # %% Listen to results
 
+from myutils import simulate_listening_points_sara_stitched
+
 # Run the simulation for the two specific points
-bright_norm, dark_norm = simulate_listening_points_sara(
-    room_dim, fs, all_speakers, g_full, audio_fft, bright_center, dark_center, nfft, nbr_bounces
-)
+bright_norm, dark_norm = simulate_listening_points_sara_stitched(
+room_dim, fs, all_speakers, g_full, bright_center, dark_center, 
+nfft, nbr_bounces, n_chunks, overlap=overlap, time_signals=time_signals, f_signals=f_signals, duration=duration)
 
 # Save the results
 save_as_wav("pm_bright_zone_center.wav", bright_norm, fs)
 save_as_wav("pm_dark_zone_center.wav", dark_norm, fs)
-
-print("Audio files saved!")
-play_audio_directly(bright_norm, dark_norm, fs)
 
 # Save as a single sequential file
 save_combined_wav("pm_combined_zones.wav", bright_norm, dark_norm, fs, pause_duration=1.0)
@@ -261,7 +288,10 @@ save_combined_wav("pm_combined_zones.wav", bright_norm, dark_norm, fs, pause_dur
 
 plot_audio_analysis(
     "pm_bright_zone_center.wav", 
-    "pm_dark_zone_center.wav", time_zoom=(0.00, 0.1), fs = fs
+    "pm_dark_zone_center.wav", 
+    time_zoom=(0.00, 0.13), 
+    fs = fs, 
+    freq_range=(0, 8000)
 )
 
 
