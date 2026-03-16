@@ -1,3 +1,5 @@
+
+
 ## Spectral Analysis Project
 
 # %%
@@ -14,10 +16,9 @@ import matplotlib.pyplot as plt
 import scipy.io.wavfile as wav
 import time 
 plt.ion()
-from myutils import (
+from some_functioning_ex.one_freq_perfect_peak_utils import (
     calc_pressure_matching,
     calc_smooth_pressure_matching,
-    create_pure_signal,
     create_rectangular_perimeter_speaker_array,
     create_uniform_rectangular_mic_grid,
     get_energy_map_db,
@@ -34,10 +35,10 @@ from myutils import (
     evaluate_zone_smoothness,
     evaluate_acoustic_contrast,
     get_or_compute_H,
+    create_signal, 
     plot_signal,
     clean_wav_data, 
-    resample_signal,
-    window_signal
+    resample_signal
 )
 
 # import myutils
@@ -70,16 +71,17 @@ print('='*50)
 
 # ------------------------
 # Import Audio
-import_audio = True
+import_audio = False
 filepath = 'wav_files/why_were_you_away.wav' # used if import_audio = True
 start_sec = 0.200       # second to start the audio processing
 
 duration  = 40e-3       # seconds
-#duration = 1024/fs      # To make sure nfft = len(audio_time)
+duration = 1024/fs      # To make sure nfft = len(audio_time)
 # ------------------------
 
 # NFFT needs to be equal to or larger than fs*duration
 nfft = 2**int(np.ceil(np.log2(fs * duration))) # The next power of 2
+
 f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
 if import_audio:
@@ -93,19 +95,18 @@ else:
 
     # ------------------------
     # Choose the 
-    #audio_freq = np.array([406.25]) # 406.25 gives us perfect peak
-    audio_freq = np.array([400, 500, 600])
-    audio_amp = np.array([1, 1, 2])
-    audio_phase = np.array([0, 0, 0])
+    audio_freq = np.array([406.25]) # 406.25 gives us perfect peak
+    audio_amp = np.array([1])
+    audio_phase = np.array([0])
     zero_padd_sec = 0    # seconds, FOR NOW, MUST BE ZERO!!
-    mag_clipp = 10e-8
+    mag_clipp = 10e-4
     # ------------------------
 
-    t_axis, audio_time, audio_fft = create_pure_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase, zero_padd_sec=zero_padd_sec)
+    t_axis, audio_time, audio_fft = create_signal(duration, fs, nfft, audio_freq, audio_amp, audio_phase, zero_padd_sec=zero_padd_sec)
 
     plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp)
 
-    #del audio_freq, audio_amp, audio_phase, mag_clipp
+    del audio_freq, audio_amp, audio_phase, mag_clipp
 
 print('='*50)
 print(
@@ -116,12 +117,6 @@ print(
     f"\tDuration:          {duration} [s]"
 )
 print('='*50)
-
-# Windowed signal
-t_axis, audio_time, audio_fft = window_signal(audio_time, fs, nfft)
-
-plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp)
-
 
 # %% Create room
 
@@ -242,7 +237,7 @@ save_combined_wav("pm_combined_zones.wav", bright_norm, dark_norm, fs, pause_dur
 
 plot_audio_analysis(
     "pm_bright_zone_center.wav", 
-    "pm_dark_zone_center.wav", time_zoom=(0.00, 0.1), fs = fs
+    "pm_dark_zone_center.wav", time_zoom=(0.0, 0.1), fs = fs
 )
 
 
