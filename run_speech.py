@@ -123,6 +123,49 @@ t_axis, audio_time, audio_fft = window_signal(audio_time, fs, nfft)
 plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp)
 
 
+# %% Hanning Window
+
+n = len(audio_time) # The individual length of each chunc
+n_overlap = int(n/2)
+
+audio_ones = np.ones(n)
+
+t_axis_1, audio_time_1, audio_fft_2 = window_signal(audio_ones, fs, nfft)
+audio_time_1_padded = np.pad(audio_time_1, (0, n_overlap), 'constant')
+t_axis_2, audio_time_2, audio_fft_2 = window_signal(audio_ones, fs, nfft)
+audio_time_2_padded = np.pad(audio_time_2, (n_overlap, 0), 'constant')
+
+t_axis_full = np.arange(nfft + n_overlap) / fs
+audio_time_sum = audio_time_1_padded + audio_time_2_padded
+
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 8))  # adjust size if needed
+
+# --- First subplot: Time domain ---
+ax1.plot(t_axis_full*1_000, audio_time_1_padded, color='tab:blue')
+ax1.set_xlabel("Time [ms]")
+ax1.set_ylabel("Magnitude")
+ax1.set_title("Time Domain: Audio Signal")
+ax1.grid(True)
+
+# --- First subplot: Time domain ---
+ax2.plot(t_axis_full*1_000, audio_time_2_padded, color='tab:blue')
+ax2.set_xlabel("Time [ms]")
+ax2.set_ylabel("Magnitude")
+ax2.set_title("Time Domain: Audio Signal")
+ax2.grid(True)
+
+# --- First subplot: Time domain ---
+ax3.plot(t_axis_full*1_000, audio_time_sum, color='tab:blue')
+ax3.set_xlabel("Time [ms]")
+ax3.set_ylabel("Magnitude")
+ax3.set_title("Time Domain: Audio Signal")
+ax3.grid(True)
+
+# Adjust layout so titles and labels don't overlap
+plt.tight_layout()
+plt.show()
+
+
 # %% Create room
 
 room = pra.ShoeBox(
