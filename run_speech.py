@@ -70,7 +70,7 @@ print('='*50)
 
 # ------------------------
 # Import Audio
-import_audio = False
+import_audio = True
 filepath = 'wav_files/why_were_you_away.wav' # used if import_audio = True
 start_sec = 0.200       # second to start the audio processing
 
@@ -80,7 +80,6 @@ duration  = 40e-3       # seconds
 
 # NFFT needs to be equal to or larger than fs*duration
 nfft = 2**int(np.ceil(np.log2(fs * duration))) # The next power of 2
-
 f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
 if import_audio:
@@ -94,10 +93,10 @@ else:
 
     # ------------------------
     # Choose the 
-    audio_freq = np.array([406.25]) # 406.25 gives us perfect peak
-    audio_freq = np.array([400])
-    audio_amp = np.array([1])
-    audio_phase = np.array([0])
+    #audio_freq = np.array([406.25]) # 406.25 gives us perfect peak
+    audio_freq = np.array([400, 500, 600])
+    audio_amp = np.array([1, 1, 2])
+    audio_phase = np.array([0, 0, 0])
     zero_padd_sec = 0    # seconds, FOR NOW, MUST BE ZERO!!
     mag_clipp = 10e-8
     # ------------------------
@@ -106,12 +105,7 @@ else:
 
     plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp)
 
-    # Windowed signal
-    t_axis, audio_time, audio_fft = window_signal(audio_time, fs, nfft)
-
-    plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp)
-
-    del audio_freq, audio_amp, audio_phase, mag_clipp
+    #del audio_freq, audio_amp, audio_phase, mag_clipp
 
 print('='*50)
 print(
@@ -122,6 +116,12 @@ print(
     f"\tDuration:          {duration} [s]"
 )
 print('='*50)
+
+# Windowed signal
+t_axis, audio_time, audio_fft = window_signal(audio_time, fs, nfft)
+
+plot_signal(t_axis, audio_time, f_axis, audio_fft, fs, nfft, mag_clipp)
+
 
 # %% Create room
 
