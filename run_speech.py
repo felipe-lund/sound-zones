@@ -71,10 +71,10 @@ print('='*50)
 
 # ------------------------
 # Import Audio
-import_audio = False
+import_audio = True
 filepath = 'wav_files/why_were_you_away.wav' # used if import_audio = True
 start_sec = 0.200       # second to start the audio processing
-duration  = 20e-3       # seconds
+duration  = 40e-3       # seconds
 overlap = 0.5
 
 # NFFT needs to be equal to or larger than fs*duration
@@ -84,7 +84,7 @@ f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
 # Params
 plot = False
-n_chunks = 120
+n_chunks = 150
 print('='*50)
 print(
     f"Audio Properties:\n"
@@ -269,12 +269,18 @@ plot_pressure_map(
 
 # %% Listen to results
 
-from myutils import simulate_listening_points_sara_stitched
+from myutils import simulate_listening_points_sara_stitched, calculate_broadband_contrast
 
 # Run the simulation for the two specific points
 bright_norm, dark_norm = simulate_listening_points_sara_stitched(
 room_dim, fs, all_speakers, g_full, bright_center, dark_center, 
 nfft, nbr_bounces, n_chunks, overlap=overlap, time_signals=time_signals, f_signals=f_signals, duration=duration)
+
+# Calculate the actual achieved contrast
+achieved_contrast = calculate_broadband_contrast(bright_norm, dark_norm)
+print('='*50)
+print(f"Final Broadband Acoustic Contrast: {achieved_contrast:.2f} dB")
+print('='*50)
 
 # Save the results
 save_as_wav("pm_bright_zone_center.wav", bright_norm, fs)
@@ -286,6 +292,9 @@ save_combined_wav("pm_combined_zones.wav", bright_norm, dark_norm, fs, pause_dur
 
 # %% View wav files
 
+from myutils import calculate_sliding_contrast
+
+
 plot_audio_analysis(
     "pm_bright_zone_center.wav", 
     "pm_dark_zone_center.wav", 
@@ -294,6 +303,23 @@ plot_audio_analysis(
     freq_range=(0, 8000)
 )
 
+
+# 1. Calculate the sliding contrast
+# window_sec=0.04 (40ms) is a good default for speech analysis
+t_contrast, contrast_vals = calculate_sliding_contrast(bright_norm, dark_norm, fs, window_sec=0.04)
+
+# 2. Plotting
+plt.figure(figsize=(12, 4))
+plt.plot(t_contrast, contrast_vals, color='purple', linewidth=1.5)
+plt.axhline(y=np.mean(contrast_vals), color='black', linestyle='--', label=f'Avg: {np.mean(contrast_vals):.1f} dB')
+
+plt.title("Time-Varying Acoustic Contrast")
+plt.xlabel("Time [s]")
+plt.ylabel("Contrast [dB]")
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.show()
 
 # %% Only for Sara's Run All button to work
 

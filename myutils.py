@@ -827,3 +827,68 @@ def import_signal(filepath, fs, nfft, start_sec, duration):
     audio_fft = np.fft.rfft(audio_time, n=nfft)
 
     return t_axis, audio_time, audio_fft
+
+
+def calculate_broadband_contrast(bright_signal, dark_signal):
+    """
+    Calculates the broadband acoustic contrast in dB between two time-domain signals.
+    
+    Parameters:
+        bright_signal (np.ndarray): The audio signal from the bright zone.
+        dark_signal (np.ndarray): The audio signal from the dark zone.
+        
+    Returns:
+        float: The contrast in decibels (dB).
+    """
+    # 1. Calculate the Mean Square (Energy) of both signals
+    # We use a small epsilon (1e-12) to prevent division by zero
+    energy_bright = np.mean(np.square(bright_signal))
+    energy_dark = np.mean(np.square(dark_signal))
+    
+    # 2. Calculate the ratio and convert to decibels
+    # Formula: 10 * log10(Energy_Bright / Energy_Dark)
+    contrast_db = 10 * np.log10((energy_bright + 1e-12) / (energy_dark + 1e-12))
+    
+    return contrast_db
+
+
+def calculate_sliding_contrast(bright_signal, dark_signal, fs, window_sec=0.05, overlap=0.5):
+    """
+    Calculates how the dB contrast evolves over time using a sliding window.
+    
+    Parameters:
+        bright_signal (np.ndarray): The bright zone audio.
+        dark_signal (np.ndarray): The dark zone audio.
+        fs (int): Sampling frequency.
+        window_sec (float): Duration of each analysis window in seconds.
+        overlap (float): Fraction of overlap between windows (0 to 1).
+        
+    Returns:
+        t_axis (np.ndarray): Time points for the center of each window.
+        contrast_series (np.ndarray): dB contrast values over time.
+    """
+    hop_size = int(round(fs * window_sec * (1 - overlap)))
+    window_size = int(round(fs * window_sec))
+    
+    contrast_series = []
+    t_axis = []
+    
+    # Iterate through the signal in steps
+    for start in range(0, len(bright_signal) - window_size, hop_size):
+        end = start + window_size
+        
+        # Extract chunks
+        b_chunk = bright_signal[start:end]
+        d_chunk = dark_signal[start:end]
+        
+        # Calculate local energy
+        energy_b = np.mean(np.square(b_chunk))
+        energy_d = np.mean(np.square(d_chunk))
+        
+        # Calculate local contrast in dB
+        db = 10 * np.log10((energy_b + 1e-12) / (energy_d + 1e-12))
+        
+        contrast_series.append(db)
+        t_axis.append((start + window_size / 2) / fs)
+        
+    return np.array(t_axis), np.array(contrast_series)
