@@ -358,6 +358,85 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
+# %% Plotta hela ljudfilen och en inzoomad del
+
+# %% Plotta hela filen, inzoomat segment och dess spektrum
+
+import scipy.io.wavfile as wav
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
+
+# --- 1. Parametrar och dataförberedelse ---
+# (Vi använder variablerna från ditt tidigare skript)
+zoom_start_sec = 0.200 
+zoom_duration_sec = 0.040 # 40 ms
+mag_clipp = 1e-6
+
+# Läs in ljudfilen
+fs_orig, audio_full_raw = wav.read(filepath)
+if len(audio_full_raw.shape) > 1:
+    audio_full_raw = audio_full_raw[:, 0]
+
+# Normalisera
+audio_full_data = audio_full_raw.astype(np.float32) / (np.max(np.abs(audio_full_raw)) + 1e-9)
+
+# Skapa tidsaxel för hela filen
+t_axis_full = np.linspace(0, len(audio_full_data) / fs_orig, len(audio_full_data))
+
+# Extrahera 40 ms segmentet
+start_sample = int(zoom_start_sec * fs_orig)
+end_sample = start_sample + int(zoom_duration_sec * fs_orig)
+audio_zoom_data = audio_full_data[start_sample:end_sample]
+
+# --- 2. Beräkna FFT för segmentet ---
+# Vi använder nfft från dina parametrar (t.ex. 1024)
+# Om segmentet är kortare än nfft nollutfylls det automatiskt av np.fft.rfft
+audio_fft = np.fft.rfft(audio_zoom_data, n=nfft)
+f_axis = np.fft.rfftfreq(nfft, d=1/fs_orig)
+
+# --- 3. Skapa figuren med 3 subplots ---
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
+
+# Subplot 1: Hela ljudfilen
+ax1.plot(t_axis_full, audio_full_data, color='tab:blue', linewidth=0.5)
+ax1.axvspan(zoom_start_sec, zoom_start_sec + zoom_duration_sec, color='red', alpha=0.3, label='Valt segment')
+ax1.set_title(f"Hela ljudfilen: {filepath}")
+ax1.set_ylabel("Amplitud")
+ax1.set_xlabel("Tid [s]")
+ax1.legend(loc='upper right', framealpha=1)
+ax1.grid(True, alpha=0.3)
+
+# Subplot 2: Inzoomad del (40 ms)
+t_axis_zoom_ms = np.linspace(0, zoom_duration_sec * 1000, len(audio_zoom_data))
+ax2.plot(t_axis_zoom_ms, audio_zoom_data, color='tab:blue')
+ax2.set_title(f"Tidsdomän: Zoomat segment (40 ms vid {zoom_start_sec*1000:.0f} ms)")
+ax2.set_ylabel("Amplitud")
+ax2.set_xlabel("Tid [ms]")
+ax2.grid(True)
+
+# Subplot 3: Frekvensdomän (Log2-skala)
+magnitude = np.abs(audio_fft) / (nfft / 2)
+magnitude_clipped = np.maximum(magnitude, mag_clipp) 
+
+ax3.semilogy(f_axis, magnitude_clipped, color='tab:orange')
+ax3.set_xscale('log', base=2)
+
+# Formatering enligt din funktion
+octave_ticks = [125, 250, 500, 1000, 2000, 4000, 8000]
+ax3.set_xticks(octave_ticks)
+ax3.xaxis.set_major_formatter(ScalarFormatter())
+ax3.minorticks_off()
+
+ax3.set_xlim([62.5, fs_orig/2])
+ax3.set_xlabel("Frekvens [Hz] (Log2-skala)")
+ax3.set_ylabel("Magnitud (Log)")
+ax3.set_title("Frekvensdomän: FFT av segmentet")
+ax3.grid(True, which='both', linestyle='--', alpha=0.5)
+
+# Snygga till layouten
+plt.tight_layout()
+plt.show()
 # %% Only for Sara's Run All button to work
 
 # This has to be in the end of the file for Sara's figures to not close down
