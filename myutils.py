@@ -453,6 +453,73 @@ def simulate_listening_points_sara_stitched(room_dim, fs, all_speakers, g_full, 
     
     return bright_audio / max_val, dark_audio / max_val
 
+
+def simulate_listening_points_sara_stitched2(room_dim, fs, all_speakers, g_full, bright_center, dark_center, nfft, nbr_bounces, n_chunks, overlap: float, time_signals: list, f_signals: list, duration: float):
+    """
+    Simulates the audio received at the centers of the bright and dark zones using proper Overlap-Add.
+    """
+    num_speakers = all_speakers.shape[1]
+    
+    # 1. Calculate precise lengths and step sizes based on the UNPADDED chunk
+    samples_per_chunk = int(round(fs * duration))
+    
+    # Corrected step size: Hop forward by the non-overlapping portion
+    step_size = int(round(samples_per_chunk * (1.0 - overlap))) 
+    
+    # Total length MUST accommodate the start index of the last chunk PLUS the full nfft tail
+    total_length = (n_chunks - 1) * step_size + nfft
+    
+    # 2. Create the listening room (ShoeBox with same properties)
+    listening_room = pra.ShoeBox(room_dim, fs=fs, max_order=nbr_bounces, air_absorption=True)
+
+    # 3. Synthesize signals for each speaker
+    for i in range(num_speakers):
+        
+        # Pre-allocate array for the entire stitched signal
+        full_speaker_audio_time_domain = np.zeros(total_length)
+        
+        for j, audio_fft in enumerate(f_signals):
+            
+            # Apply the spatial filter in frequency domain
+            speaker_audio_freq_domain = audio_fft * g_full[i, :]
+    
+            # Transform back to time domain with FULL nfft length
+            speaker_audio_time_domain = np.fft.irfft(speaker_audio_freq_domain, n=nfft)
+            
+            # Calculate start and end indices using the STEP SIZE (not nfft)
+            start_idx = j * step_size
+            end_idx = start_idx + nfft
+            
+            # Add the FULL chunk to the total signal (Overlap-Add)
+            # This correctly overlaps the zero-padding and filter tails into the next frame!
+            full_speaker_audio_time_domain[start_idx:end_idx] += speaker_audio_time_domain
+
+        # Add the completed, stitched signal to the room for this speaker
+        listening_room.add_source(all_speakers[:, i], signal=full_speaker_audio_time_domain)
+
+    # 4. Add microphones at zone centers
+    mics_coords = np.array([
+        [bright_center[0], bright_center[1], bright_center[2]],
+        [dark_center[0], dark_center[1], dark_center[2]]
+    ]).T
+    
+    listening_room.add_microphone_array(pra.MicrophoneArray(mics_coords, fs))
+
+    # 5. Run simulation
+    print("Simulating audio for playback...")
+    listening_room.simulate()
+
+    # 6. Extract and Normalize
+    bright_audio = listening_room.mic_array.signals[0, :]
+    dark_audio = listening_room.mic_array.signals[1, :]
+    
+    # Preserve relative volume difference
+    max_val = max(np.max(np.abs(bright_audio)), np.max(np.abs(dark_audio)))
+    if max_val == 0: 
+        max_val = 1 # Avoid division by zero
+    
+    return bright_audio / max_val, dark_audio / max_val
+
 def save_as_wav(filename, signal, fs):
     """Helper to convert float signal to 16-bit PCM and save."""
     scaled = np.int16(signal * 32767)
@@ -813,6 +880,7 @@ def import_signal(filepath, fs, nfft, start_sec, duration):
 
     filepath = 'wav_files/why_were_you_away.wav'
     fs_file, wav_data = wav.read(filepath)
+    print(f'fs_file: {fs_file}')
     data = clean_wav_data(wav_data) # extract signal and normalize
     audio_time_full = resample_signal(data, fs_file, fs)
 
@@ -852,7 +920,7 @@ def calculate_broadband_contrast(bright_signal, dark_signal):
     return contrast_db
 
 
-def calculate_sliding_contrast(bright_signal, dark_signal, fs, window_sec=0.05, overlap=0.5):
+def calculate_sliding_contrast(bright_signal, dark_signal, fs, window_sec=0.04, overlap=0.5):
     """
     Calculates how the dB contrast evolves over time using a sliding window.
     
@@ -892,3 +960,109 @@ def calculate_sliding_contrast(bright_signal, dark_signal, fs, window_sec=0.05, 
         t_axis.append((start + window_size / 2) / fs)
         
     return np.array(t_axis), np.array(contrast_series)
+
+
+def compute_anechoic_H(mics_locs, speaker_locs, fs, nfft):
+    """
+    Analytically computes the Transfer Function matrix H for an anechoic (free-field) 
+    environment using the free-space Green's function.
+    
+    H[m, s, f] = (1 / dist) * exp(-j * k * dist)
+    """
+    num_mics = mics_locs.shape[1]
+    num_speakers = speaker_locs.shape[1]
+    num_bins = nfft // 2 + 1
+    
+    c = pra.constants.get('c')
+    f_axis = np.fft.rfftfreq(nfft, d=1/fs)
+    
+    # 1. Pre-calculate all pairwise distances between mics and speakers
+    # Resulting shape: (num_mics, num_speakers)
+    diffs = mics_locs[:, :, np.newaxis] - speaker_locs[:, np.newaxis, :]
+    dists = np.linalg.norm(diffs, axis=0)
+    
+    # 2. Initialize H_full
+    H_full = np.zeros((num_mics, num_speakers, num_bins), dtype=complex)
+    
+    # 3. Vectorized computation over frequencies
+    for idx, f in enumerate(f_axis):
+        if f == 0:
+            # Handle DC component: pure 1/r attenuation, no phase shift
+            H_full[:, :, idx] = 1.0 / dists
+        else:
+            k = 2 * np.pi * f / c
+            # Free-space Green's function: (1/r) * e^(-j * k * r)
+            H_full[:, :, idx] = (1.0 / dists) * np.exp(-1j * k * dists)
+            
+    return H_full
+
+
+def plot_chunked_contrast(bright_signal, dark_signal, fs, chunk_sec=0.04):
+    """
+    Calculates and plots the acoustic contrast and raw energy for exact, 
+    non-overlapping chunks of the audio signals.
+    """
+    # 1. Calculate chunk size in samples
+    chunk_size = int(round(fs * chunk_sec))
+    num_chunks = len(bright_signal) // chunk_size
+    
+    contrast_vals = []
+    energy_vals = []
+    t_axis = []
+    
+    # 2. Iterate through strictly non-overlapping chunks
+    for i in range(num_chunks):
+        start = i * chunk_size
+        end = start + chunk_size
+        
+        b_chunk = bright_signal[start:end]
+        d_chunk = dark_signal[start:end]
+        
+        # Calculate Mean Square (Energy)
+        energy_b = np.mean(np.square(b_chunk))
+        energy_d = np.mean(np.square(d_chunk))
+        
+        # Calculate Contrast in dB
+        db = 10 * np.log10((energy_b + 1e-12) / (energy_d + 1e-12))
+        
+        contrast_vals.append(db)
+        # Convert bright energy to dB for easier visualization against contrast
+        energy_vals.append(10 * np.log10(energy_b + 1e-12)) 
+        
+        # Time axis represents the center of the chunk
+        t_axis.append((start + chunk_size / 2) / fs)
+
+    # 3. Plotting
+    fig, ax1 = plt.subplots(figsize=(12, 5))
+
+    # Plot the Contrast (Left Y-Axis)
+    color1 = 'black'
+    ax1.set_xlabel('Time [s]')
+    ax1.set_ylabel('Contrast [dB]', color=color1)
+    ax1.plot(t_axis, contrast_vals, color=color1, marker='o', linestyle='-', linewidth=2, label='Acoustic Contrast')
+    ax1.tick_params(axis='y', labelcolor=color1)
+    
+    # Add an average line for contrast
+    avg_contrast = np.mean(contrast_vals)
+    ax1.axhline(y=avg_contrast, color=color1, linestyle='--', alpha=0.5, label=f'Avg Contrast: {avg_contrast:.1f} dB')
+
+    # Plot the Bright Zone Energy (Right Y-Axis)
+    ax2 = ax1.twinx()  
+    color2 = 'black'
+    ax2.set_ylabel('Bright Zone Energy [dB]', color=color2)
+    ax2.plot(t_axis, energy_vals, color=color2, marker='x', linestyle=':', linewidth=1.5, label='Bright Energy')
+    ax2.tick_params(axis='y', labelcolor=color2)
+
+    # Title and grids
+    plt.title(f"Acoustic Contrast Analysis ({chunk_sec*1000:.0f} ms chunks)")
+    ax1.grid(True, alpha=0.3)
+    
+    # Combine legends from both axes
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right')
+
+    plt.tight_layout()
+    plt.show()
+
+    return np.array(t_axis), np.array(contrast_vals), np.array(energy_vals)
