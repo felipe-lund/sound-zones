@@ -100,6 +100,7 @@ def calc_pressure_matching(room, nfft, H_full, bright_indices, dark_indices):
         # Bright zone: Plane wave traveling from left to right
         k = 2 * np.pi * f / c   
         theta = 0.0 # Angle of incidence (0 radians = left to right)
+        # theta = np.pi / 2
         kx = k * np.cos(theta)
         ky = k * np.sin(theta)
 
