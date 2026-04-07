@@ -74,12 +74,12 @@ print('='*50)
 import_audio = True
 filepath = 'wav_files/why_were_you_away.wav' # used if import_audio = True
 start_sec = 0.200       # second to start the audio processing
-duration  = 40e-3       # seconds
+duration  = 40e-3       # seconds 
 overlap = 0.5
 
 # NFFT needs to be equal to or larger than fs*duration
-nfft = 2**int(np.ceil(np.log2(fs * duration))+2) # The next power of 2
-nfft = 1024
+# nfft = 2**int(np.ceil(np.log2(fs * duration))+2) # The next power of 2
+nfft = 1024 # (fs * duration < nfft needs to be true)
 f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
 # Params
