@@ -12,5 +12,5 @@ The main programs to run are saved in the run_speech-files and the functions cre
 
 ## Main Variables to Try Tweaking
 
-The radius of the bright and the dark zone can easily be changed by the variable ´radius´. The sampling frequency ´fs´, the number of bounces ´nbr_bounces´
+The radius of the bright and the dark zone can easily be changed by the variable `radius`. The sampling frequency `fs`, the number of bounces `nbr_bounces`
 
