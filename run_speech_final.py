@@ -71,7 +71,7 @@ print('='*50)
 
 # ------------------------
 # Import Audio
-import_audio = False
+import_audio = True
 filepath = 'wav_files/why_were_you_away.wav' # used if import_audio = True
 start_sec = 0.200       # second to start the audio processing
 duration  = 40e-3       # seconds
@@ -84,7 +84,7 @@ f_axis = np.fft.rfftfreq(nfft, d=1/fs)
 
 # Params
 plot = False
-n_chunks = 1
+n_chunks = 150
 print('='*50)
 print(
     f"Audio Properties:\n"
@@ -244,7 +244,7 @@ print('='*50)
 
 # %% Define Zones
 
-radius = 0.5
+radius = 0.1
 bright_center = np.array([1.5, 3.0, 2.5])
 dark_center = np.array([3.5, 3.0, 2.5])
 bright_indices, dark_indices = get_zone_indices(
@@ -350,7 +350,7 @@ from myutils import calculate_sliding_contrast
 plot_audio_analysis(
     "pm_bright_zone_center.wav", 
     "pm_dark_zone_center.wav", 
-    time_zoom=(0.00, 0.060), 
+    time_zoom=(0.00, 1.00), 
     fs = fs, 
     freq_range=(0, 8000)
 )
